@@ -1,6 +1,5 @@
 import { Button } from "@/components/ui/button";
 import useAxios from "@/hooks/useAxios";
-import useWebSocket from "@/hooks/useWebSocket";
 import { useEffect, useState } from "react";
 import logoVite from "../../assets/vite.svg";
 import logoReact from "../../assets/react.svg";
@@ -13,17 +12,54 @@ const HomePage = () => {
   const [message, setMessage] = useState("");
   const [refetchData, setRefetchData] = useState(false);
   
-  // WebSocket hook
-  const { 
-    isConnected, 
-    sendMessage, 
-    lastMessage, 
-    connectionStatus, 
-    messages 
-  } = useWebSocket('ws://127.0.0.1:8000/ws');
-  
   // WebSocket state
+  const [wsConnected, setWsConnected] = useState(false);
   const [wsMessage, setWsMessage] = useState("");
+  const [wsMessages, setWsMessages] = useState<string[]>([]);
+  const [ws, setWs] = useState<WebSocket | null>(null);
+
+  // WebSocket functions
+  const connectWebSocket = () => {
+    if (ws) return;
+    
+    const websocket = new WebSocket('ws://127.0.0.1:8000/ws/echo');
+    
+    websocket.onopen = () => {
+      console.log('WebSocket connected');
+      setWsConnected(true);
+      setWs(websocket);
+    };
+    
+    websocket.onmessage = (event) => {
+      console.log('Received:', event.data);
+      setWsMessages(prev => [...prev, event.data]);
+    };
+    
+    websocket.onclose = () => {
+      console.log('WebSocket disconnected');
+      setWsConnected(false);
+      setWs(null);
+    };
+    
+    websocket.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
+  };
+  
+  const disconnectWebSocket = () => {
+    if (ws) {
+      ws.close();
+      setWs(null);
+      setWsConnected(false);
+    }
+  };
+  
+  const sendMessage = () => {
+    if (ws && wsMessage.trim()) {
+      ws.send(wsMessage);
+      setWsMessage('');
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -60,73 +96,14 @@ const HomePage = () => {
       <p className="text-center text-lg my-6 h-4">
         {loading ? "Loading" : <>{message}</>}
       </p>
-      
-      {/* HTTP API Section */}
-      <div className="mb-8 p-4 border rounded-lg bg-gray-50">
-        <h2 className="text-xl font-semibold mb-4">HTTP API Test</h2>
-        <div className="flex justify-center gap-4">
-          <Button
-            size="lg"
-            variant={"outline"}
-            onClick={() => setRefetchData(!refetchData)}
-          >
-            Refetch Data
-          </Button>
-        </div>
-      </div>
-
-      {/* WebSocket Section */}
-      <div className="mb-8 p-4 border rounded-lg bg-blue-50">
-        <h2 className="text-xl font-semibold mb-4">WebSocket Test</h2>
-        <div className="mb-4">
-          <p className="text-sm">
-            Status: <span className={`font-semibold ${
-              connectionStatus === 'Connected' ? 'text-green-600' : 
-              connectionStatus === 'Error' ? 'text-red-600' : 
-              'text-yellow-600'
-            }`}>
-              {connectionStatus}
-            </span>
-          </p>
-        </div>
-        
-        <div className="flex gap-2 mb-4">
-          <input
-            type="text"
-            value={wsMessage}
-            onChange={(e) => setWsMessage(e.target.value)}
-            placeholder="Type a message..."
-            className="flex-1 px-3 py-2 border rounded-md"
-            onKeyPress={(e) => e.key === 'Enter' && wsMessage && sendMessage(wsMessage) && setWsMessage('')}
-          />
-          <Button
-            onClick={() => {
-              if (wsMessage) {
-                sendMessage(wsMessage);
-                setWsMessage('');
-              }
-            }}
-            disabled={!isConnected || !wsMessage}
-          >
-            Send
-          </Button>
-        </div>
-        
-        <div className="max-h-40 overflow-y-auto bg-white p-2 rounded border">
-          <h3 className="text-sm font-semibold mb-2">Messages:</h3>
-          {messages.length === 0 ? (
-            <p className="text-gray-500 text-sm">No messages yet</p>
-          ) : (
-            messages.map((msg, index) => (
-              <div key={index} className="text-sm mb-1 p-1 bg-gray-100 rounded">
-                {msg}
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-
       <div className="flex justify-center gap-4">
+        <Button
+          size="lg"
+          variant={"outline"}
+          onClick={() => setRefetchData(!refetchData)}
+        >
+          Refetch Data
+        </Button>
         <Button
           size="lg"
           variant={"outline"}
@@ -142,6 +119,75 @@ const HomePage = () => {
       </div>
 
       <hr className="my-2" />
+      
+      {/* WebSocket Echo Test */}
+      <div className="mt-8 p-6 border rounded-lg bg-gray-50 w-full max-w-md">
+        <h3 className="text-lg font-semibold mb-4">WebSocket Echo Test</h3>
+        
+        {/* Connection Status */}
+        <div className="flex items-center gap-2 mb-4">
+          <div className={`w-3 h-3 rounded-full ${wsConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+          <span className="text-sm">
+            {wsConnected ? 'Connected' : 'Disconnected'}
+          </span>
+        </div>
+        
+        {/* Connect/Disconnect Buttons */}
+        <div className="flex gap-2 mb-4">
+          <Button
+            size="sm"
+            onClick={connectWebSocket}
+            disabled={wsConnected}
+          >
+            Connect
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={disconnectWebSocket}
+            disabled={!wsConnected}
+          >
+            Disconnect
+          </Button>
+        </div>
+        
+        {/* Message Input */}
+        <div className="flex gap-2 mb-4">
+          <input
+            type="text"
+            value={wsMessage}
+            onChange={(e) => setWsMessage(e.target.value)}
+            placeholder="Type a message..."
+            className="flex-1 px-3 py-2 border rounded-md"
+            onKeyPress={(e) => {
+              if (e.key === 'Enter') {
+                sendMessage();
+              }
+            }}
+            disabled={!wsConnected}
+          />
+          <Button
+            size="sm"
+            onClick={sendMessage}
+            disabled={!wsConnected || !wsMessage.trim()}
+          >
+            Send
+          </Button>
+        </div>
+        
+        {/* Messages Display */}
+        {wsMessages.length > 0 && (
+          <div className="bg-white p-3 rounded border max-h-40 overflow-y-auto">
+            <div className="text-sm text-gray-600 mb-2">Messages:</div>
+            {wsMessages.map((msg, index) => (
+              <div key={index} className="text-sm py-1 border-b last:border-b-0">
+                {msg}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      
       <div>
         <Button
           size="lg"

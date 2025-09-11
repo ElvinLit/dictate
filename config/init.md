@@ -1,1 +1,0 @@
-Stores any configuration data that will be shared between the services e.g. User credentials
