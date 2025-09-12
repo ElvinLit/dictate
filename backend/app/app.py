@@ -1,7 +1,12 @@
 from fastapi import FastAPI, Request, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from app.config.config import SECRET_KEY, ALLOWED_ORIGINS
+
+# HTTP APIs
 from app.api import root, data
+
+# WebSocket APIs
+from app.api import echo
 
 app = FastAPI()
 
@@ -29,24 +34,9 @@ async def verify_secret_header(request: Request, call_next):
         raise HTTPException(status_code=403, detail="Forbidden")
     return await call_next(request)
 
-# Simple WebSocket echo endpoint
-@app.websocket("/ws/echo")
-async def websocket_echo(websocket: WebSocket):
-    await websocket.accept()
-    print("WebSocket client connected - DEBUG")
-    
-    try:
-        while True:
-            # Wait for message from client
-            data = await websocket.receive_text()
-            print(f"Received: {data}")
-            
-            # Echo back to client with exclamation mark
-            await websocket.send_text(f"{data}!")
-            print(f"Sent: {data}!")
-            
-    except WebSocketDisconnect:
-        print("WebSocket client disconnected")
-
+# HTTP endpoints
 app.include_router(root.router)
 app.include_router(data.router, prefix="/data")
+
+# WebSocket endpoints
+app.include_router(echo.router, prefix="/ws")
