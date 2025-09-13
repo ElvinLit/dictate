@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell } from "electron";
+import { app, BrowserWindow, ipcMain, shell, screen } from "electron";
 import { spawn, ChildProcessWithoutNullStreams } from "child_process";
 import { fileURLToPath } from "url";
 import path from "path";
@@ -27,11 +27,19 @@ let backendProcess: ChildProcessWithoutNullStreams | null = null;
 
 function createWindow() {
   // Create browser window
+  const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+
   win = new BrowserWindow({
-    width: 1000,
-    height: 700,
+    width,
+    height,
+    movable: false,
     resizable: false,
-    icon: path.join(process.env.VITE_PUBLIC, "electron.svg"),
+    minimizable: false,
+    maximizable: false,
+    transparent: true,
+    frame: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.mjs"),
       contextIsolation: true,
