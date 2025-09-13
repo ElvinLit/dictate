@@ -6,7 +6,7 @@ from app.config.config import SECRET_KEY, ALLOWED_ORIGINS
 from app.api import root, data
 
 # WebSocket APIs
-from app.api import echo
+from app.api import echo, dictate
 
 app = FastAPI()
 
@@ -40,3 +40,4 @@ app.include_router(data.router, prefix="/data")
 
 # WebSocket endpoints
 app.include_router(echo.router, prefix="/ws")
+app.include_router(dictate.router, prefix="/ws")
