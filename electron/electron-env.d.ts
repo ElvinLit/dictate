@@ -12,5 +12,6 @@ interface Window {
   electron: {
     sendNotification: ({ title: string, body: string }) => void;
     openExternal: (url: string) => void;
+    setIgnoreMouseEvents: (ignore: boolean) => void;
   };
 }

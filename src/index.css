@@ -114,7 +114,54 @@
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply bg-background text-foreground;
+  
+  /* CRUCIAL: Make html and body transparent for click-through overlay */
+  html, body {
+    background-color: transparent !important;
+    margin: 0;
+    padding: 0;
   }
+  
+  #root {
+    background-color: transparent;
+  }
+}
+
+/* Overlay-specific styles */
+.dictate-button {
+  position: fixed;
+  bottom: 50px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 15px 30px;
+  font-size: 16px;
+  font-weight: 500;
+  background-color: #000000;
+  color: white;
+  border: none;
+  border-radius: 50px;
+  cursor: pointer;
+  z-index: 1000;
+  font-family: system-ui, -apple-system, sans-serif;
+  transition: all 0.2s ease;
+}
+
+.dictate-button:hover {
+  background-color: #333333;
+  transform: translateX(-50%) scale(1.05);
+}
+
+.side-panel {
+  position: fixed;
+  top: 50px;
+  right: 50px;
+  width: 300px;
+  height: 400px;
+  background-color: rgba(0, 0, 0, 0.5);
+  border-radius: 15px;
+  backdrop-filter: blur(10px);
+  z-index: 1000;
+  padding: 20px;
+  color: white;
+  font-family: system-ui, -apple-system, sans-serif;
 }

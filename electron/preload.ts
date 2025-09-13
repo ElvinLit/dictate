@@ -9,4 +9,8 @@ contextBridge.exposeInMainWorld("electron", {
   },
 
   openExternal: (url: string) => ipcRenderer.send("open-external", url),
+
+  // Mouse event control for smart click-through
+  setIgnoreMouseEvents: (ignore: boolean) => 
+    ipcRenderer.send("set-ignore-mouse-events", ignore),
 });

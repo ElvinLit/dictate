@@ -60,6 +60,9 @@ function createWindow() {
     win?.webContents.send("main-process-message", new Date().toLocaleString());
   });
 
+  // Enable smart click-through: ignore mouse events by default, but forward them
+  win.setIgnoreMouseEvents(true, { forward: true });
+
   // Spawn backend if not in dev
   if (!VITE_DEV_SERVER_URL && !backendProcess) {
     const backendExecutable =
@@ -124,4 +127,15 @@ ipcMain.on("open-external", (_event, url) => {
   shell.openExternal(url).catch((err) => {
     console.error("Failed to open URL:", err);
   });
+});
+
+// Mouse event handling for smart click-through
+ipcMain.on("set-ignore-mouse-events", (_event, ignore: boolean) => {
+  if (win) {
+    if (ignore) {
+      win.setIgnoreMouseEvents(true, { forward: true });
+    } else {
+      win.setIgnoreMouseEvents(false);
+    }
+  }
 });
