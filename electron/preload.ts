@@ -4,9 +4,5 @@ import { contextBridge, ipcRenderer } from "electron";
 contextBridge.exposeInMainWorld("electron", {
   // EXPOSE ELECTRON BASED APIS TO REACT
   // MUST DEFINE IN electron-env.d.ts.
-  sendNotification: ({ title, body }: { title: string; body: string }) => {
-    new Notification(title, { body });
-  },
-
-  openExternal: (url: string) => ipcRenderer.send("open-external", url),
+  setClickThrough: (ignore: boolean) => ipcRenderer.send("set-click-through", ignore),
 });

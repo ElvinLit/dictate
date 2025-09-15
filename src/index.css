@@ -1,7 +1,4 @@
 @import "tailwindcss";
-@import "tw-animate-css";
-
-@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
@@ -114,7 +111,36 @@
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply bg-background text-foreground;
+  html, body, #root {
+    @apply bg-transparent text-foreground;
+    background: transparent !important;
   }
 }
+
+/* Overlay styles for click-through behavior */
+.overlay-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.overlay-clickable {
+  pointer-events: auto;
+}
+
+/* Make overlay container and its children click-through by default */
+.overlay-container > * {
+  pointer-events: none;
+}
+
+/* Only the clickable area should capture events */
+.overlay-clickable {
+  pointer-events: auto;
+}
+

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell } from "electron";
+import { app, BrowserWindow, ipcMain, screen } from "electron";
 import { spawn, ChildProcessWithoutNullStreams } from "child_process";
 import { fileURLToPath } from "url";
 import path from "path";
@@ -26,11 +26,25 @@ let win: BrowserWindow | null;
 let backendProcess: ChildProcessWithoutNullStreams | null = null;
 
 function createWindow() {
+  // Get primary display dimensions
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width, height } = primaryDisplay.workAreaSize;
+  
   // Create browser window
   win = new BrowserWindow({
-    width: 1000,
-    height: 700,
+    width: width,
+    height: height,
+    x: 0,
+    y: 0,
+    transparent: true,
+    frame: false,
+    alwaysOnTop: true,
+    skipTaskbar: false,
     resizable: false,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    closable: true,
     icon: path.join(process.env.VITE_PUBLIC, "electron.svg"),
     webPreferences: {
       preload: path.join(__dirname, "preload.mjs"),
@@ -49,7 +63,10 @@ function createWindow() {
   }
 
   win.webContents.on("did-finish-load", () => {
-    win?.webContents.send("main-process-message", new Date().toLocaleString());
+    // Enable click-through for the entire window initially
+    if (win) {
+      win.setIgnoreMouseEvents(true, { forward: true });
+    }
   });
 
   // Spawn backend if not in dev
@@ -111,9 +128,9 @@ app.on("activate", () => {
 
 app.whenReady().then(createWindow);
 
-// API FUNCTIONS
-ipcMain.on("open-external", (_event, url) => {
-  shell.openExternal(url).catch((err) => {
-    console.error("Failed to open URL:", err);
-  });
+// Toggle click-through behavior
+ipcMain.on("set-click-through", (_event, ignore: boolean) => {
+  if (win) {
+    win.setIgnoreMouseEvents(ignore, { forward: true });
+  }
 });

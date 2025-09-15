@@ -10,7 +10,6 @@ declare namespace NodeJS {
 interface Window {
   // DEFINE ELECTRON BASED APIS FOR REACT TO USE LIKE SO: window.electron.sendNotification(...)
   electron: {
-    sendNotification: ({ title: string, body: string }) => void;
-    openExternal: (url: string) => void;
+    setClickThrough: (ignore: boolean) => void;
   };
 }

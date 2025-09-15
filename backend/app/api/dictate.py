@@ -35,6 +35,7 @@ async def websocket_dictate(websocket: WebSocket):
     await websocket.accept()
     logger.info("WebSocket client connected to /dictate")
     
+    
     try:
         while True:
             # Wait for message from client
@@ -51,9 +52,19 @@ async def websocket_dictate(websocket: WebSocket):
                     # Process transcript message
                     logger.info("Processing transcript message")
                     
-                    # Store transcript
+                    # Store transcript with sender
+                    sender = message_data.get("sender")
+                    if sender is None:
+                        logger.error("Missing 'sender' field in transcript message, defaulting to 'User'")
+                        sender = "User"
+                    
+                    text = message_data.get("text", "")
+                    if not text:
+                        logger.error("Missing or empty 'text' field in transcript message, defaulting to empty string")
+                    
                     transcript_data = transcript_service.store_transcript(
-                        text=message_data.get("text", "")
+                        text=text,
+                        sender=sender
                     )
                     
                     # Send transcript back
