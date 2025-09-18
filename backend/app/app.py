@@ -19,7 +19,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 @app.middleware("http")
 async def verify_secret_header(request: Request, call_next):
     if request.method == "OPTIONS":

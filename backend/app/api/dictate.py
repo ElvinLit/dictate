@@ -1,9 +1,12 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
 import json
 import logging
 from datetime import datetime
 from typing import Dict, Any
 from app.services.transcript import TranscriptService
+from app.services.agent.agent_service import AgentService
+from app.dependencies import get_agent_service
+import asyncio
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -30,11 +33,34 @@ async def send_message(websocket: WebSocket, message_type: str, data: Dict[str, 
     await websocket.send_text(json.dumps(message))
     logger.info(f"Sent {message_type}: {data}")
 
+async def process_agent_response(websocket: WebSocket, text: str, agent_service: AgentService, correlation_id: str = None):
+    """Process user text with agent and send response back to frontend."""
+    try:
+        # Process with agent service (handles both web actions and general chat)
+        response_text = agent_service.process_text(text)
+        
+        # Store agent's response
+        agent_transcript_data = transcript_service.store_transcript(
+            text=response_text,
+            sender="Dictate"
+        )
+        
+        # Send agent's response back to frontend
+        await send_message(websocket, "transcript", agent_transcript_data, correlation_id=correlation_id)
+        
+    except Exception as e:
+        logger.error(f"Error processing agent response: {e}")
+        # Send error message to frontend
+        error_transcript_data = transcript_service.store_transcript(
+            text=f"Sorry, I encountered an error: {str(e)}",
+            sender="Dictate"
+        )
+        await send_message(websocket, "transcript", error_transcript_data, correlation_id=correlation_id)
+
 @router.websocket("/dictate")
-async def websocket_dictate(websocket: WebSocket):
+async def websocket_dictate(websocket: WebSocket, agent_service: AgentService = Depends(get_agent_service)):
     await websocket.accept()
     logger.info("WebSocket client connected to /dictate")
-    
     
     try:
         while True:
@@ -62,13 +88,21 @@ async def websocket_dictate(websocket: WebSocket):
                     if not text:
                         logger.error("Missing or empty 'text' field in transcript message, defaulting to empty string")
                     
+                    # Store the user's message
                     transcript_data = transcript_service.store_transcript(
                         text=text,
                         sender=sender
                     )
                     
-                    # Send transcript back
+                    # Send user's message back to frontend
                     await send_message(websocket, "transcript", transcript_data, correlation_id=correlation_id)
+                    
+                    # If it's a user message, process it with agent
+                    if sender == "User":
+                        logger.info(f"Processing user message with agent: {text}")
+                        
+                        # Process with agent service asynchronously (non-blocking)
+                        asyncio.create_task(process_agent_response(websocket, text, agent_service, correlation_id))
                 
                 elif message_type == "ping":
                     # Respond to ping
