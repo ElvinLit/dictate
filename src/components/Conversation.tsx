@@ -1,32 +1,31 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket';
-
-interface Message {
-  sender: string;
-  text: string;
-  timestamp: string;
-}
+import { useVoiceRecording } from '../hooks/useVoiceRecording';
+import { useTranscript } from '../hooks/useTranscript';
+import { useAgent } from '../hooks/useAgent';
 
 const Conversation: React.FC = () => {
-  const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const { isConnected, sendMessage, onMessage, offMessage } = useWebSocket();
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+  const { 
+    isRecording, 
+    isSupported, 
+    startRecording, 
+    stopRecording, 
+    getAudioBlob, 
+    error: voiceError 
+  } = useVoiceRecording();
+  const { messages, addMessage, messagesEndRef } = useTranscript();
+  const { sendUserMessage, sendDictateMessage } = useAgent();
 
   useEffect(() => {
     const handleMessage = (message: any) => {
       if (message.type === 'transcript') {
-        setMessages(prev => [...prev, message.data]);
+        addMessage(message.data);
       } else if (message.type === 'cleared') {
-        setMessages([]);
+        // TODO: Clear messages if needed
+        // addMessage({ sender: 'System', text: 'Messages cleared', timestamp: new Date().toISOString() });
       }
     };
 
@@ -35,17 +34,55 @@ const Conversation: React.FC = () => {
     return () => {
       offMessage(handleMessage);
     };
-  }, [onMessage, offMessage]);
+  }, [onMessage, offMessage, addMessage]);
 
-  const sendTranscriptMessage = (sender: 'User' | 'Dictate') => {
-    if (!isConnected || !inputText.trim()) return;
+  const handleSendMessage = (sender: 'User' | 'Dictate') => {
+    if (!inputText.trim()) return;
     
-    sendMessage('transcript', {
-      text: inputText.trim(),
-      sender: sender
-    });
+    if (sender === 'User') {
+      sendUserMessage(inputText);
+    } else {
+      sendDictateMessage(inputText);
+    }
     
     setInputText('');
+  };
+
+  const sendAudioMessage = async (audioBlob: Blob) => {
+    setIsTranscribing(true);
+    
+    try {
+      // Convert audio blob to base64
+      const arrayBuffer = await audioBlob.arrayBuffer();
+      const base64Audio = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+      
+      // Send audio message via WebSocket
+      sendMessage('audio', {
+        audio_data: base64Audio
+      });
+      
+    } catch (error) {
+      console.error('Error sending audio message:', error);
+      addMessage({
+        sender: 'Dictate',
+        text: `Audio transmission failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        timestamp: new Date().toISOString()
+      });
+    } finally {
+      setIsTranscribing(false);
+    }
+  };
+
+  const handleVoiceRecording = async () => {
+    if (isRecording) {
+      stopRecording();
+      const audioBlob = getAudioBlob();
+      if (audioBlob) {
+        await sendAudioMessage(audioBlob);
+      }
+    } else {
+      startRecording();
+    }
   };
 
   return (
@@ -56,6 +93,11 @@ const Conversation: React.FC = () => {
         <div className={`text-sm ${isConnected ? 'text-green-400' : 'text-red-400'}`}>
           {isConnected ? '🟢 Connected' : '🔴 Disconnected'}
         </div>
+        {voiceError && (
+          <div className="text-sm text-red-400 mt-1">
+            {voiceError}
+          </div>
+        )}
       </div>
       
       {/* Conversation Messages */}
@@ -63,7 +105,7 @@ const Conversation: React.FC = () => {
         {messages.length === 0 ? (
           <div className="text-center text-gray-400 mt-8">
             <p>No messages yet.</p>
-            <p className="text-sm">Start a conversation below!</p>
+            <p className="text-sm">Start a conversation below or use voice!</p>
           </div>
         ) : (
           messages.map((message, index) => (
@@ -94,7 +136,7 @@ const Conversation: React.FC = () => {
             onChange={(e) => setInputText(e.target.value)}
             onKeyPress={(e) => {
               if (e.key === 'Enter') {
-                sendTranscriptMessage('User');
+                handleSendMessage('User');
               }
             }}
             placeholder="Type a message..."
@@ -103,15 +145,28 @@ const Conversation: React.FC = () => {
           />
           
           <div className="flex gap-2">
+            {/* Voice Recording Button */}
             <button
-              onClick={() => sendTranscriptMessage('User')}
+              onClick={handleVoiceRecording}
+              disabled={!isConnected || !isSupported || isTranscribing}
+              className={`flex-1 px-3 py-2 text-sm rounded-lg focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                isRecording 
+                  ? 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500' 
+                  : 'bg-purple-600 text-white hover:bg-purple-700 focus:ring-purple-500'
+              }`}
+            >
+              {isTranscribing ? 'Transcribing...' : isRecording ? 'Stop Recording' : 'Voice Input'}
+            </button>
+            
+            <button
+              onClick={() => handleSendMessage('User')}
               disabled={!isConnected || !inputText.trim()}
               className="flex-1 px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               User
             </button>
             <button
-              onClick={() => sendTranscriptMessage('Dictate')}
+              onClick={() => handleSendMessage('Dictate')}
               disabled={!isConnected || !inputText.trim()}
               className="flex-1 px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >

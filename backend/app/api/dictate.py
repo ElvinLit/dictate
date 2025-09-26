@@ -5,7 +5,8 @@ from datetime import datetime
 from typing import Dict, Any
 from app.services.transcript import TranscriptService
 from app.services.agent.agent_service import AgentService
-from app.dependencies import get_agent_service
+from app.services.voice_processing.audio_transcription_service import AudioTranscriptionService
+from app.dependencies import get_agent_service, get_audio_transcription_service
 import asyncio
 
 # Set up logging
@@ -33,6 +34,7 @@ async def send_message(websocket: WebSocket, message_type: str, data: Dict[str, 
     await websocket.send_text(json.dumps(message))
     logger.info(f"Sent {message_type}: {data}")
 
+
 async def process_agent_response(websocket: WebSocket, text: str, agent_service: AgentService, correlation_id: str = None):
     """Process user text with agent and send response back to frontend."""
     try:
@@ -58,7 +60,11 @@ async def process_agent_response(websocket: WebSocket, text: str, agent_service:
         await send_message(websocket, "transcript", error_transcript_data, correlation_id=correlation_id)
 
 @router.websocket("/dictate")
-async def websocket_dictate(websocket: WebSocket, agent_service: AgentService = Depends(get_agent_service)):
+async def websocket_dictate(
+    websocket: WebSocket, 
+    agent_service: AgentService = Depends(get_agent_service),
+    audio_service: AudioTranscriptionService = Depends(get_audio_transcription_service)
+):
     await websocket.accept()
     logger.info("WebSocket client connected to /dictate")
     
@@ -103,6 +109,36 @@ async def websocket_dictate(websocket: WebSocket, agent_service: AgentService = 
                         
                         # Process with agent service asynchronously (non-blocking)
                         asyncio.create_task(process_agent_response(websocket, text, agent_service, correlation_id))
+                
+                elif message_type == "audio":
+                    # Process audio message for transcription
+                    logger.info("Processing audio message")
+                    
+                    try:
+                        # Use audio transcription service
+                        transcribed_text = await audio_service.transcribe_audio_message(message_data)
+                        
+                        # Store transcribed text as user message
+                        transcript_data = transcript_service.store_transcript(
+                            text=transcribed_text,
+                            sender="User"
+                        )
+                        
+                        # Send transcribed text back to frontend
+                        await send_message(websocket, "transcript", transcript_data, correlation_id=correlation_id)
+                        
+                        # Process with agent service asynchronously (non-blocking)
+                        logger.info(f"Processing transcribed text with agent: {transcribed_text}")
+                        asyncio.create_task(process_agent_response(websocket, transcribed_text, agent_service, correlation_id))
+                        
+                    except Exception as e:
+                        logger.error(f"Error processing audio message: {e}")
+                        # Send error message to frontend
+                        error_transcript_data = transcript_service.store_transcript(
+                            text=f"Audio transcription failed: {str(e)}",
+                            sender="Dictate"
+                        )
+                        await send_message(websocket, "transcript", error_transcript_data, correlation_id=correlation_id)
                 
                 elif message_type == "ping":
                     # Respond to ping
